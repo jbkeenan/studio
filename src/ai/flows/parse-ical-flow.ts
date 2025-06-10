@@ -22,16 +22,17 @@ const IcalEventSchema = z.object({
 });
 export type IcalEvent = z.infer<typeof IcalEventSchema>;
 
-const ParseIcalInputSchema = z.object({
+// Not exported due to 'use server' restrictions on exporting non-async functions/objects
+const ParseIcalInputSchemaInternal = z.object({
   icalUrl: z.string().url({ message: "Invalid URL format for iCal feed." }).describe("The URL of the iCalendar (.ics) feed."),
 });
-export type ParseIcalInput = z.infer<typeof ParseIcalInputSchema>;
+export type ParseIcalInput = z.infer<typeof ParseIcalInputSchemaInternal>;
 
-const ParseIcalOutputSchema = z.object({
+const ParseIcalOutputSchemaInternal = z.object({
   events: z.array(IcalEventSchema).describe("A list of parsed calendar events."),
   error: z.string().optional().describe("Error message if parsing failed."),
 });
-export type ParseIcalOutput = z.infer<typeof ParseIcalOutputSchema>;
+export type ParseIcalOutput = z.infer<typeof ParseIcalOutputSchemaInternal>;
 
 export async function parseIcalFeed(input: ParseIcalInput): Promise<ParseIcalOutput> {
   return parseIcalFlow(input);
@@ -40,7 +41,7 @@ export async function parseIcalFeed(input: ParseIcalInput): Promise<ParseIcalOut
 const prompt = ai.definePrompt({
   name: 'parseIcalPrompt',
   input: { schema: z.object({ icalContent: z.string() }) },
-  output: { schema: ParseIcalOutputSchema },
+  output: { schema: ParseIcalOutputSchemaInternal },
   prompt: `You are an expert iCalendar data parser. Given the following iCalendar (.ics) data, extract all VEVENT components.
 For each VEVENT, provide:
 - uid: The unique identifier (UID property).
@@ -65,8 +66,8 @@ iCalendar Data:
 const parseIcalFlow = ai.defineFlow(
   {
     name: 'parseIcalFlow',
-    inputSchema: ParseIcalInputSchema,
-    outputSchema: ParseIcalOutputSchema,
+    inputSchema: ParseIcalInputSchemaInternal,
+    outputSchema: ParseIcalOutputSchemaInternal,
   },
   async (input) => {
     try {
@@ -74,13 +75,29 @@ const parseIcalFlow = ai.defineFlow(
       if (!response.ok) {
         return { events: [], error: `Failed to fetch iCal feed: ${response.status} ${response.statusText}` };
       }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.toLowerCase().includes("text/calendar")) {
+        const contentPreview = await response.text(); // Read text to show preview
+        return { 
+          events: [], 
+          error: `Unexpected content type: ${contentType || 'N/A'}. Expected 'text/calendar'. Response preview (first 200 chars): '${contentPreview.substring(0,200).replace(/\n/g, "\\n")}'`
+        };
+      }
+      
       const icalContent = await response.text();
 
       if (!icalContent.trim().startsWith("BEGIN:VCALENDAR")) {
-         return { events: [], error: "Invalid iCal feed: Does not start with BEGIN:VCALENDAR." };
+         return { 
+           events: [], 
+           error: `Invalid iCal feed: Does not start with BEGIN:VCALENDAR. Content preview (first 200 chars): '${icalContent.substring(0,200).replace(/\n/g, "\\n")}'` 
+         };
       }
       if (!icalContent.trim().includes("VEVENT")) {
-        return { events: [], error: "No VEVENT found in the iCal feed." };
+        return { 
+          events: [], 
+          error: `No VEVENT found in the iCal feed. Content preview (first 500 chars): '${icalContent.substring(0,500).replace(/\n/g, "\\n")}'`
+        };
       }
 
       const {output} = await prompt({ icalContent });
@@ -88,7 +105,6 @@ const parseIcalFlow = ai.defineFlow(
         return { events: [], error: "AI failed to parse the iCal content or returned no output." };
       }
       
-      // Validate events from LLM output
       const validatedEvents = [];
       if (output.events && Array.isArray(output.events)) {
         for (const event of output.events) {
@@ -96,22 +112,19 @@ const parseIcalFlow = ai.defineFlow(
           if (parsedEvent.success) {
             validatedEvents.push(parsedEvent.data);
           } else {
-            console.warn("Invalid event structure from LLM:", parsedEvent.error.flatten());
-            // Optionally, you could collect these errors and return them
+            // console.warn("Invalid event structure from LLM:", parsedEvent.error.flatten()); // This log is for server-side/dev console
           }
         }
       }
       
       if(validatedEvents.length === 0 && !output.error && output.events && output.events.length > 0) {
-         // This means LLM returned events, but none passed Zod validation
-         return { events: [], error: "AI returned event data in an unexpected format. Please check iCal feed structure." };
+         return { events: [], error: "AI returned event data in an unexpected format. Please check iCal feed structure and content." };
       }
-
 
       return { events: validatedEvents, error: output.error };
 
     } catch (error) {
-      console.error("Error in parseIcalFlow:", error);
+      // console.error("Error in parseIcalFlow:", error); // This log is for server-side/dev console
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during iCal parsing.";
       return { events: [], error: errorMessage };
     }
