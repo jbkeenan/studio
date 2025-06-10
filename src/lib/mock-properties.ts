@@ -1,8 +1,9 @@
 
-import type { ThermostatType, TemperatureUnit } from '@/components/thermostat/ThermostatControl'; // Assuming these types can be made available or are simple enough to redefine if not exported
+import type { ThermostatType, TemperatureUnit } from '@/components/thermostat/ThermostatControl';
+import type { IcalEvent } from '@/ai/flows/parse-ical-flow';
 
 export interface PropertyThermostatConfig {
-  id: string; // Unique ID for the thermostat within the property
+  id: string;
   initialName: string;
   initialThermostatType: ThermostatType;
   initialTargetTempC: number;
@@ -17,9 +18,12 @@ export interface Property {
   imageUrl: string;
   imageHint: string;
   thermostats: PropertyThermostatConfig[];
+  icalUrl?: string; // Explicitly add icalUrl
+  syncedBookingEvents?: IcalEvent[];
+  lastSyncTimestamp?: string; // ISO string
 }
 
-export const mockProperties: Property[] = [
+export let mockProperties: Property[] = [ // Changed to let for in-memory updates
   {
     id: 'property-1',
     name: 'Cozy Downtown Apartment',
@@ -30,6 +34,7 @@ export const mockProperties: Property[] = [
       { id: 'living-room-1', initialName: 'Living Room', initialThermostatType: 'central', initialTargetTempC: 21, initialBrand: 'Nest', initialUnit: 'C' },
       { id: 'bedroom-1', initialName: 'Bedroom', initialThermostatType: 'split', initialTargetTempC: 20, initialBrand: 'Daikin', initialUnit: 'F' },
     ],
+    icalUrl: 'https://app.ownerrez.com/feeds/ical/6b5cb4a943524fd1b9231177736b3053', // Sample for property 1
   },
   {
     id: 'property-2',
@@ -42,6 +47,7 @@ export const mockProperties: Property[] = [
       { id: 'upstairs-2', initialName: 'Upstairs', initialThermostatType: 'central', initialTargetTempC: 21, initialBrand: 'Ecobee', initialUnit: 'C' },
       { id: 'guest-suite-2', initialName: 'Guest Suite', initialThermostatType: 'split', initialTargetTempC: 20, initialBrand: 'Mitsubishi', initialUnit: 'F' },
     ],
+    // No icalUrl for property 2 by default
   },
   {
     id: 'property-3',
@@ -52,6 +58,7 @@ export const mockProperties: Property[] = [
     thermostats: [
       { id: 'living-area-3', initialName: 'Living Area', initialThermostatType: 'split', initialTargetTempC: 24, initialBrand: 'LG', initialUnit: 'C' },
     ],
+    icalUrl: 'https://app.ownerrez.com/feeds/ical/6b5cb4a943524fd1b9231177736b3053', // Same sample for demo
   },
   {
     id: 'property-4',
@@ -67,4 +74,20 @@ export const mockProperties: Property[] = [
 
 export function getPropertyById(id: string): Property | undefined {
   return mockProperties.find(p => p.id === id);
+}
+
+// Function to update the in-memory mockProperties array.
+// This is a workaround for direct modification in API routes which might not persist due to module caching/reloading.
+export function updatePropertySyncData(propertyId: string, events: IcalEvent[] | undefined, timestamp: string | undefined, newIcalUrl?: string): boolean {
+  const propertyIndex = mockProperties.findIndex(p => p.id === propertyId);
+  if (propertyIndex !== -1) {
+    mockProperties[propertyIndex] = {
+      ...mockProperties[propertyIndex],
+      syncedBookingEvents: events,
+      lastSyncTimestamp: timestamp,
+      icalUrl: newIcalUrl !== undefined ? newIcalUrl : mockProperties[propertyIndex].icalUrl,
+    };
+    return true;
+  }
+  return false;
 }
