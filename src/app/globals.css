@@ -110,3 +110,32 @@ body {
     /* Apply PT Sans font from layout.tsx */
   }
 }
+
+/* Calendar day modifiers */
+.day-booked {
+  @apply bg-accent/30 text-accent-foreground rounded-md;
+  /* If you want a dot instead of background:
+  position: relative; 
+  */
+}
+/* Example for a dot, if preferred over background:
+.day-booked::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: hsl(var(--accent));
+}
+*/
+
+.day-booked:hover {
+    @apply bg-accent/50;
+}
+
+.rdp-day_selected.day-booked { /* When a booked day is also the selected day */
+    @apply bg-primary text-primary-foreground;
+}

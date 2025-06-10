@@ -12,18 +12,18 @@ import { SmartScheduleDisplay } from '@/components/smart-schedule/SmartScheduleD
 import type { SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
 import type { IcalEvent } from '@/ai/flows/parse-ical-flow';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Calendar as ShadCalendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Calendar as ShadCalendar, type CalendarProps } from "@/components/ui/calendar";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertCircle, CalendarDays, ChevronLeft, Home as HomeIcon, Loader2, Rss, Settings2, ExternalLink } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronLeft, Home as HomeIcon, Loader2, Rss, Settings2, ExternalLink, Edit2 } from "lucide-react";
 import { getPropertyById, type Property } from '@/lib/mock-properties';
 import { parseIcalFeedAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { format, getMonth, getYear, isWithinInterval, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, getMonth, getYear, isWithinInterval, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isEqual, formatISO, setHours, setMinutes, setSeconds, addHours, subHours } from 'date-fns';
 
 export default function PropertyDetailPage() {
   const params = useParams();
@@ -45,10 +45,19 @@ export default function PropertyDetailPage() {
   const [isLoadingIcal, setIsLoadingIcal] = useState(false);
   const [icalError, setIcalError] = useState<string | null>(null);
 
-  const [selectedEvent, setSelectedEvent] = useState<IcalEvent | null>(null);
+  const [selectedEventForTable, setSelectedEventForTable] = useState<IcalEvent | null>(null);
   const [isEventDetailDialogOpen, setIsEventDetailDialogOpen] = useState(false);
 
+  const [selectedEventForOverride, setSelectedEventForOverride] = useState<IcalEvent | null>(null);
+  const [isOverrideDialogOpen, setIsOverrideDialogOpen] = useState(false);
+  const [overrideAcOnTime, setOverrideAcOnTime] = useState(''); // HH:MM
+  const [overrideAcAdjustTime, setOverrideAcAdjustTime] = useState(''); // HH:MM
+  const [overrideCheckoutPresetTemp, setOverrideCheckoutPresetTemp] = useState('');
+
+
   const localStorageKeyPrefix = `thermoai_prop_${propertyId}_`;
+  const getBookingOverrideKey = (uid: string, field: string) => `${localStorageKeyPrefix}booking_${uid}_${field}`;
+
 
   const fetchAndDisplayIcalEvents = useCallback(async (urlToFetch: string) => {
     if (!urlToFetch) {
@@ -58,41 +67,38 @@ export default function PropertyDetailPage() {
     }
     setIsLoadingIcal(true);
     setIcalError(null);
-    // setBookingEvents([]); // Keep old events while loading new ones for better UX? Or clear? Let's clear.
-
+    
     const result = await parseIcalFeedAction({ icalUrl: urlToFetch });
 
     if (result.success && result.data) {
       setBookingEvents(result.data.events || []);
       if (result.data.events?.length === 0 && !result.data.error) {
-         // Only show toast if it's a manual sync, not initial load
         if (!isLoadingIcal) toast({ title: "Calendar Sync", description: "No bookings found in the iCal feed." });
       } else if (result.data.events && result.data.events.length > 0) {
         if (!isLoadingIcal) toast({ title: "Calendar Synced", description: `Found ${result.data.events.length} booking(s).` });
       }
       if(result.data.error) {
         setIcalError(`Partial success: ${result.data.error}`);
-        toast({ title: "Calendar Sync Warning", description: result.data.error, variant: "destructive" });
+        if (!isLoadingIcal) toast({ title: "Calendar Sync Warning", description: result.data.error, variant: "destructive" });
       }
     } else {
       setIcalError(result.error || "Failed to parse iCal feed.");
-      toast({ title: "Calendar Sync Error", description: result.error || "Unknown error.", variant: "destructive" });
+      if (!isLoadingIcal) toast({ title: "Calendar Sync Error", description: result.error || "Unknown error.", variant: "destructive" });
     }
     setIsLoadingIcal(false);
-  }, [toast, isLoadingIcal]); // Added isLoadingIcal to deps
+  }, [toast, isLoadingIcal]);
 
   useEffect(() => {
     if (propertyId) {
       const foundProperty = getPropertyById(propertyId);
       setProperty(foundProperty || null);
 
-      // Load settings from localStorage
       const storedIcalUrl = localStorage.getItem(`${localStorageKeyPrefix}icalUrl`);
       const storedHoursBefore = localStorage.getItem(`${localStorageKeyPrefix}hoursBeforeCheckIn`);
       const storedHoursAfter = localStorage.getItem(`${localStorageKeyPrefix}hoursAfterCheckOut`);
       const storedCheckoutTemp = localStorage.getItem(`${localStorageKeyPrefix}checkoutPresetTemp`);
 
-      let urlToLoad = icalUrl; // Default to state's default URL
+      let urlToLoad = icalUrl; 
       if (storedIcalUrl) {
         setIcalUrl(storedIcalUrl);
         urlToLoad = storedIcalUrl;
@@ -105,7 +111,7 @@ export default function PropertyDetailPage() {
       fetchAndDisplayIcalEvents(urlToLoad);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyId, localStorageKeyPrefix]); // fetchAndDisplayIcalEvents removed from deps to avoid loop with its own isLoadingIcal dep
+  }, [propertyId, localStorageKeyPrefix]);
 
   const handleSaveAutomationSettings = (e: FormEvent) => {
     e.preventDefault();
@@ -131,7 +137,7 @@ export default function PropertyDetailPage() {
   const eventsForSelectedMonth = useMemo(() => {
     if (!calendarDate || bookingEvents.length === 0) return [];
     const year = getYear(calendarDate);
-    const month = getMonth(calendarDate); // 0-indexed
+    const month = getMonth(calendarDate); 
     const interval = {
       start: startOfMonth(new Date(year, month, 1)),
       end: endOfMonth(new Date(year, month, 1)),
@@ -141,18 +147,116 @@ export default function PropertyDetailPage() {
         const startDate = parseISO(event.startDate);
         const endDate = parseISO(event.endDate);
         return isWithinInterval(startDate, interval) || isWithinInterval(endDate, interval) || 
-               (startDate < interval.start && endDate > interval.end); // Event spans across the month
+               (startDate < interval.start && endDate > interval.end); 
       } catch (e) {
-        // console.error("Error parsing event date for filtering:", event, e);
         return false;
       }
     }).sort((a, b) => parseISO(a.startDate).getTime() - parseISO(b.startDate).getTime());
   }, [calendarDate, bookingEvents]);
 
   const handleEventRowClick = (event: IcalEvent) => {
-    setSelectedEvent(event);
+    setSelectedEventForTable(event);
     setIsEventDetailDialogOpen(true);
   };
+
+  const bookedDaysModifier = useMemo(() => {
+    const dates: Date[] = [];
+    bookingEvents.forEach(event => {
+      try {
+        const start = parseISO(event.startDate);
+        const end = parseISO(event.endDate);
+        // For day-long events, DTEND might be the start of the next day.
+        // We want to include the actual last day of the event.
+        const actualEnd = end > start && format(end, 'HH:mm:ss') === '00:00:00' ? subHours(end, 1) : end;
+        const intervalDates = eachDayOfInterval({ start, end: actualEnd });
+        dates.push(...intervalDates);
+      } catch (e) { /* ignore_error */ }
+    });
+    return dates;
+  }, [bookingEvents]);
+
+  const calendarModifiers: CalendarProps['modifiers'] = {
+    booked: bookedDaysModifier,
+    // future: can add 'overrideApplied' modifier too
+  };
+  const calendarModifiersClassNames: CalendarProps['modifiersClassNames'] = {
+    booked: 'day-booked',
+  };
+  
+  const handleDayClick: CalendarProps['onDayClick'] = (day, modifiers) => {
+    if (modifiers.booked) {
+        const clickedDayEvents = bookingEvents.filter(event => {
+            try {
+                const startDate = parseISO(event.startDate);
+                const endDate = parseISO(event.endDate);
+                const actualEnd = endDate > startDate && format(endDate, 'HH:mm:ss') === '00:00:00' ? subHours(endDate, 1) : endDate;
+                return eachDayOfInterval({start: startDate, end: actualEnd}).some(d => isEqual(d, day));
+            } catch (e) {
+                return false;
+            }
+        });
+
+        if (clickedDayEvents.length > 0) {
+            const eventToOverride = clickedDayEvents[0]; // For simplicity, take the first event
+            setSelectedEventForOverride(eventToOverride);
+            // Load existing overrides from localStorage
+            const storedOnTime = localStorage.getItem(getBookingOverrideKey(eventToOverride.uid, 'overrideAcOnTime'));
+            const storedAdjustTime = localStorage.getItem(getBookingOverrideKey(eventToOverride.uid, 'overrideAcAdjustTime'));
+            const storedPresetTemp = localStorage.getItem(getBookingOverrideKey(eventToOverride.uid, 'overrideCheckoutPresetTemp'));
+            
+            setOverrideAcOnTime(storedOnTime || '');
+            setOverrideAcAdjustTime(storedAdjustTime || '');
+            setOverrideCheckoutPresetTemp(storedPresetTemp || '');
+            
+            setIsOverrideDialogOpen(true);
+        } else {
+             toast({ title: "No booking found", description: "No specific booking record found for this day to override." });
+        }
+    }
+  };
+
+  const handleSaveBookingOverrides = () => {
+    if (!selectedEventForOverride) return;
+
+    if (overrideAcOnTime) localStorage.setItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideAcOnTime'), overrideAcOnTime);
+    else localStorage.removeItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideAcOnTime'));
+
+    if (overrideAcAdjustTime) localStorage.setItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideAcAdjustTime'), overrideAcAdjustTime);
+    else localStorage.removeItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideAcAdjustTime'));
+
+    if (overrideCheckoutPresetTemp) localStorage.setItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideCheckoutPresetTemp'), overrideCheckoutPresetTemp);
+    else localStorage.removeItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideCheckoutPresetTemp'));
+    
+    toast({ title: "Overrides Saved", description: `Custom automation settings for booking "${selectedEventForOverride.summary}" saved.` });
+    setIsOverrideDialogOpen(false);
+  };
+  
+  const handleClearBookingOverrides = () => {
+    if (!selectedEventForOverride) return;
+    localStorage.removeItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideAcOnTime'));
+    localStorage.removeItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideAcAdjustTime'));
+    localStorage.removeItem(getBookingOverrideKey(selectedEventForOverride.uid, 'overrideCheckoutPresetTemp'));
+    setOverrideAcOnTime('');
+    setOverrideAcAdjustTime('');
+    setOverrideCheckoutPresetTemp('');
+    toast({ title: "Overrides Cleared", description: `Custom settings for booking "${selectedEventForOverride.summary}" cleared. Property defaults will apply.` });
+    setIsOverrideDialogOpen(false);
+  };
+
+  const calculateDefaultTime = (eventDateISO: string, offsetHours: number, isCheckIn: boolean) => {
+    try {
+      let baseDate = parseISO(eventDateISO);
+      if (isCheckIn) {
+        baseDate = subHours(baseDate, offsetHours);
+      } else {
+        baseDate = addHours(baseDate, offsetHours);
+      }
+      return format(baseDate, "MMM d, h:mm a");
+    } catch {
+      return "N/A";
+    }
+  };
+
 
   if (property === undefined) {
     return (
@@ -247,12 +351,15 @@ export default function PropertyDetailPage() {
                     selected={calendarDate}
                     onSelect={setCalendarDate}
                     className="rounded-md"
-                    month={calendarDate} // Control the displayed month
-                    onMonthChange={setCalendarDate} // Allow month navigation to update calendarDate
-                    // TODO: Future enhancement - highlight bookingEvents on this calendar
+                    month={calendarDate} 
+                    onMonthChange={setCalendarDate} 
+                    modifiers={calendarModifiers}
+                    modifiersClassNames={calendarModifiersClassNames}
+                    onDayClick={handleDayClick}
                   />
                 </CardContent>
               </Card>
+              <p className="text-xs text-muted-foreground mt-2 text-center">Click a booked day to set custom automation.</p>
             </section>
           </div>
 
@@ -398,11 +505,11 @@ export default function PropertyDetailPage() {
         </div>
       </main>
 
-      {selectedEvent && (
+      {selectedEventForTable && (
         <Dialog open={isEventDetailDialogOpen} onOpenChange={setIsEventDetailDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="font-headline">{selectedEvent.summary || "Booking Details"}</DialogTitle>
+              <DialogTitle className="font-headline">{selectedEventForTable.summary || "Booking Details"}</DialogTitle>
               <DialogDescription>
                 Details for the selected booking and associated automation rules.
               </DialogDescription>
@@ -410,24 +517,107 @@ export default function PropertyDetailPage() {
             <div className="space-y-4 py-2 text-sm">
               <div>
                 <h4 className="font-semibold mb-1">Booking Information:</h4>
-                <p><strong>Check-in:</strong> {format(parseISO(selectedEvent.startDate), "MMM d, yyyy 'at' h:mm a")}</p>
-                <p><strong>Check-out:</strong> {format(parseISO(selectedEvent.endDate), "MMM d, yyyy 'at' h:mm a")}</p>
-                {selectedEvent.description && <p><strong>Description:</strong> {selectedEvent.description}</p>}
-                {selectedEvent.location && <p><strong>Location:</strong> {selectedEvent.location}</p>}
+                <p><strong>Check-in:</strong> {format(parseISO(selectedEventForTable.startDate), "MMM d, yyyy 'at' h:mm a")}</p>
+                <p><strong>Check-out:</strong> {format(parseISO(selectedEventForTable.endDate), "MMM d, yyyy 'at' h:mm a")}</p>
+                {selectedEventForTable.description && <p><strong>Description:</strong> {selectedEventForTable.description}</p>}
+                {selectedEventForTable.location && <p><strong>Location:</strong> {selectedEventForTable.location}</p>}
               </div>
               <div>
                 <h4 className="font-semibold mb-1">Configured Automation Rules:</h4>
-                <p>Turn on thermostats: <strong>{hoursBeforeCheckIn} hours</strong> before check-in.</p>
-                <p>Adjust thermostats: <strong>{hoursAfterCheckOut} hours</strong> after check-out.</p>
+                <p>Turn on thermostats: <strong>{hoursBeforeCheckIn} hours</strong> before check-in (approx. {calculateDefaultTime(selectedEventForTable.startDate, hoursBeforeCheckIn, true)}).</p>
+                <p>Adjust thermostats: <strong>{hoursAfterCheckOut} hours</strong> after check-out (approx. {calculateDefaultTime(selectedEventForTable.endDate, hoursAfterCheckOut, false)}).</p>
                 <p>Checkout Preset Temperature: <strong>{checkoutPresetTemp || "Not set"}</strong>.</p>
               </div>
+               <div>
+                <h4 className="font-semibold mb-1">Custom Overrides for this booking:</h4>
+                <p>AC On Time: <strong>{localStorage.getItem(getBookingOverrideKey(selectedEventForTable.uid, 'overrideAcOnTime')) || "Default"}</strong></p>
+                <p>AC Adjust Time: <strong>{localStorage.getItem(getBookingOverrideKey(selectedEventForTable.uid, 'overrideAcAdjustTime')) || "Default"}</strong></p>
+                <p>Checkout Preset: <strong>{localStorage.getItem(getBookingOverrideKey(selectedEventForTable.uid, 'overrideCheckoutPresetTemp')) || "Default"}</strong></p>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="sm:justify-between">
+              <Button variant="outline" onClick={() => {
+                const eventToEdit = bookingEvents.find(e => e.uid === selectedEventForTable.uid);
+                if (eventToEdit) {
+                   setIsEventDetailDialogOpen(false); // Close this dialog first
+                   handleDayClick(parseISO(eventToEdit.startDate), { booked: true }); // Simulate day click to open override
+                }
+              }}>
+                <Edit2 className="mr-2 h-4 w-4" /> Edit Overrides
+              </Button>
               <DialogClose asChild>
                 <Button type="button" variant="outline">Close</Button>
               </DialogClose>
             </DialogFooter>
           </DialogContent>
+        </Dialog>
+      )}
+
+      {selectedEventForOverride && (
+        <Dialog open={isOverrideDialogOpen} onOpenChange={setIsOverrideDialogOpen}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="font-headline">Custom Automation for "{selectedEventForOverride.summary}"</DialogTitle>
+                    <DialogDescription>
+                        Override default property settings for this specific booking. Original check-in: {format(parseISO(selectedEventForOverride.startDate), "MMM d, yyyy 'at' h:mm a")}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                    <div>
+                        <h4 className="font-semibold text-sm mb-2">Property Defaults:</h4>
+                        <p className="text-xs text-muted-foreground">AC turns ON approx: {calculateDefaultTime(selectedEventForOverride.startDate, hoursBeforeCheckIn, true)}</p>
+                        <p className="text-xs text-muted-foreground">AC adjusts at checkout approx: {calculateDefaultTime(selectedEventForOverride.endDate, hoursAfterCheckOut, false)}</p>
+                        <p className="text-xs text-muted-foreground">Checkout Preset Temp: {checkoutPresetTemp || "Not set"}</p>
+                    </div>
+                    <div className="space-y-3">
+                        <div>
+                            <Label htmlFor="overrideAcOnTime">Custom AC ON Time (HH:MM on check-in day)</Label>
+                            <Input 
+                                id="overrideAcOnTime" 
+                                type="time" 
+                                value={overrideAcOnTime} 
+                                onChange={(e) => setOverrideAcOnTime(e.target.value)}
+                                className="mt-1"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Leave blank to use property default.</p>
+                        </div>
+                        <div>
+                            <Label htmlFor="overrideAcAdjustTime">Custom AC ADJUST Time (HH:MM on check-out day)</Label>
+                            <Input 
+                                id="overrideAcAdjustTime" 
+                                type="time" 
+                                value={overrideAcAdjustTime}
+                                onChange={(e) => setOverrideAcAdjustTime(e.target.value)} 
+                                className="mt-1"
+                            />
+                             <p className="text-xs text-muted-foreground mt-1">Leave blank to use property default.</p>
+                        </div>
+                        <div>
+                            <Label htmlFor="overrideCheckoutPresetTemp">Custom Checkout Preset Temperature</Label>
+                            <Input 
+                                id="overrideCheckoutPresetTemp" 
+                                type="text" 
+                                placeholder="e.g., 20°C or Off"
+                                value={overrideCheckoutPresetTemp}
+                                onChange={(e) => setOverrideCheckoutPresetTemp(e.target.value)} 
+                                className="mt-1"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Leave blank to use property default.</p>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter className="sm:justify-between">
+                    <Button type="button" variant="destructive" onClick={handleClearBookingOverrides}>
+                        Clear Overrides & Use Defaults
+                    </Button>
+                    <div className="flex gap-2">
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button type="button" onClick={handleSaveBookingOverrides}>Save Custom Settings</Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
         </Dialog>
       )}
 
