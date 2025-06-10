@@ -24,14 +24,17 @@ export default function ThermoAIDashboard() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Thermostat Control Column */}
           <div className="lg:col-span-1 space-y-8">
             <section aria-labelledby="thermostat-control-heading">
               <h2 id="thermostat-control-heading" className="text-2xl font-headline font-semibold mb-4 text-primary">
                 Live Controls
               </h2>
-              <ThermostatControl />
+              <div className="space-y-6">
+                <ThermostatControl name="Living Room" thermostatType="central" initialTargetTemp={21} />
+                <ThermostatControl name="Bedroom" thermostatType="split" initialTargetTemp={23} />
+              </div>
             </section>
           </div>
 
