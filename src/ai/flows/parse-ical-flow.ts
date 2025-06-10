@@ -93,12 +93,8 @@ const parseIcalFlow = ai.defineFlow(
            error: `Invalid iCal feed: Does not start with BEGIN:VCALENDAR. Content preview (first 200 chars): '${icalContent.substring(0,200).replace(/\n/g, "\\n")}'` 
          };
       }
-      if (!icalContent.trim().includes("VEVENT")) {
-        return { 
-          events: [], 
-          error: `No VEVENT found in the iCal feed. Content preview (first 500 chars): '${icalContent.substring(0,500).replace(/\n/g, "\\n")}'`
-        };
-      }
+      // Removed the explicit check for VEVENT here. Let the AI try to parse it.
+      // If the AI returns no events and no error, it implies an empty but valid calendar.
 
       const {output} = await prompt({ icalContent });
       if (!output) {
@@ -118,9 +114,12 @@ const parseIcalFlow = ai.defineFlow(
       }
       
       if(validatedEvents.length === 0 && !output.error && output.events && output.events.length > 0) {
+         // This case covers when the AI returns events, but they fail Zod validation.
          return { events: [], error: "AI returned event data in an unexpected format. Please check iCal feed structure and content." };
       }
 
+      // If validatedEvents is empty and output.error is also empty, it means the AI correctly processed an empty (but valid) calendar.
+      // The UI should then show "No bookings found".
       return { events: validatedEvents, error: output.error };
 
     } catch (error) {
