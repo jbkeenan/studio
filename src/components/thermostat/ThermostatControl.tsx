@@ -1,41 +1,67 @@
 // src/components/thermostat/ThermostatControl.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Snowflake, Flame, Power, Wind, Zap, AlertCircle } from 'lucide-react';
+import { Thermometer, Droplets, Snowflake, Flame, Power, Wind, Zap, Settings, Edit3, Type, ThermometerSnowflake, ThermometerSun } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 
 type ThermostatMode = "cool" | "heat" | "auto" | "off";
 type Preset = "Away" | "Comfort" | "Eco";
-type ThermostatType = "split" | "central";
+export type ThermostatType = "split" | "central";
 type FanSpeed = "low" | "medium" | "high" | "auto";
+type TemperatureUnit = "C" | "F";
 
 interface ThermostatControlProps {
-  name: string;
-  thermostatType: ThermostatType;
-  initialTargetTemp?: number;
+  initialName: string;
+  initialThermostatType: ThermostatType;
+  initialTargetTempC: number; // Always pass initial temp in Celsius
+  initialBrand?: string;
+  initialUnit?: TemperatureUnit;
 }
 
-export function ThermostatControl({ name, thermostatType, initialTargetTemp = 22 }: ThermostatControlProps) {
-  const [currentTemp, setCurrentTemp] = useState(22);
-  const [targetTemp, setTargetTemp] = useState(initialTargetTemp);
+// Helper functions for temperature conversion
+const celsiusToFahrenheit = (celsius: number): number => (celsius * 9/5) + 32;
+const fahrenheitToCelsius = (fahrenheit: number): number => (fahrenheit - 32) * 5/9;
+
+export function ThermostatControl({ 
+  initialName, 
+  initialThermostatType, 
+  initialTargetTempC = 22,
+  initialBrand = "Generic",
+  initialUnit = "C"
+}: ThermostatControlProps) {
+  const [name, setName] = useState(initialName);
+  const [brand, setBrand] = useState(initialBrand);
+  const [thermostatType, setThermostatType] = useState<ThermostatType>(initialThermostatType);
+  const [unit, setUnit] = useState<TemperatureUnit>(initialUnit);
+  
+  const [currentTempC, setCurrentTempC] = useState(22); // Internal state always in Celsius
+  const [targetTempC, setTargetTempC] = useState(initialTargetTempC); // Internal state always in Celsius
+  
   const [humidity, setHumidity] = useState(45); // Percentage
   const [mode, setMode] = useState<ThermostatMode>("auto");
   const [fanSpeed, setFanSpeed] = useState<FanSpeed>("auto");
   const [isBoostActive, setIsBoostActive] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
+
+  // Editable states for popover
+  const [editableName, setEditableName] = useState(name);
+  const [editableBrand, setEditableBrand] = useState(brand);
 
   useEffect(() => {
     setIsClient(true);
-    // Simulate real-time updates for current temperature and humidity
     const tempInterval = setInterval(() => {
-      setCurrentTemp(prev => parseFloat((prev + (Math.random() * 0.2 - 0.1)).toFixed(1)));
+      setCurrentTempC(prev => parseFloat((prev + (Math.random() * 0.2 - 0.1)).toFixed(1)));
     }, 5000);
     const humidityInterval = setInterval(() => {
       setHumidity(prev => Math.max(30, Math.min(70, parseFloat((prev + (Math.random() * 2 - 1)).toFixed(0)))));
@@ -46,38 +72,65 @@ export function ThermostatControl({ name, thermostatType, initialTargetTemp = 22
       clearInterval(humidityInterval);
     };
   }, []);
+  
+  useEffect(() => {
+    setEditableName(name);
+  }, [name]);
+
+  useEffect(() => {
+    setEditableBrand(brand);
+  }, [brand]);
+
+
+  const displayCurrentTemp = useMemo(() => {
+    return unit === 'C' ? currentTempC : celsiusToFahrenheit(currentTempC);
+  }, [currentTempC, unit]);
+
+  const displayTargetTemp = useMemo(() => {
+    return unit === 'C' ? targetTempC : celsiusToFahrenheit(targetTempC);
+  }, [targetTempC, unit]);
 
   const handleModeChange = (newMode: ThermostatMode) => {
     setMode(newMode);
-    if (newMode === "off") {
-      setIsBoostActive(false); // Turn off boost if thermostat is off
-    }
+    if (newMode === "off") setIsBoostActive(false);
   };
 
   const handlePreset = (preset: Preset) => {
     if (mode === 'off') return;
+    let newTargetC: number;
     switch (preset) {
       case "Away":
-        setTargetTemp(mode === "heat" ? 18 : 26);
+        newTargetC = mode === "heat" ? 18 : 26; // ~64F or ~79F
         break;
       case "Comfort":
-        setTargetTemp(mode === "heat" ? 22 : 21);
+        newTargetC = mode === "heat" ? 22 : 21; // ~72F or ~70F
         break;
       case "Eco":
-        setTargetTemp(mode === "heat" ? 20 : 24);
+        newTargetC = mode === "heat" ? 20 : 24; // ~68F or ~75F
         break;
+      default:
+        newTargetC = targetTempC; // Should not happen
     }
-    setIsBoostActive(false); // Presets might override boost
+    setTargetTempC(newTargetC);
+    setIsBoostActive(false);
   };
 
-  const handleFanSpeedChange = (newSpeed: FanSpeed) => {
-    setFanSpeed(newSpeed);
-  };
-
+  const handleFanSpeedChange = (newSpeed: FanSpeed) => setFanSpeed(newSpeed);
   const toggleBoost = () => {
     if (mode === 'off') return;
     setIsBoostActive(!isBoostActive);
   };
+
+  const handleSettingsSave = () => {
+    setName(editableName);
+    setBrand(editableBrand);
+    // Thermostat type and unit are directly updated by their respective controls
+    setIsSettingsOpen(false);
+  };
+  
+  const sliderMinC = 10;
+  const sliderMaxC = 30;
+  const sliderStepC = 0.5;
 
   const modeIcons = {
     cool: <Snowflake className="h-5 w-5 text-blue-500" />,
@@ -86,9 +139,9 @@ export function ThermostatControl({ name, thermostatType, initialTargetTemp = 22
     off: <Power className="h-5 w-5 text-muted-foreground" />,
   };
 
-  const getTempColor = (temp: number) => {
-    if (temp < 18) return "text-blue-500";
-    if (temp > 25) return "text-orange-500";
+  const getTempColor = (tempInCelsius: number) => {
+    if (tempInCelsius < 18) return "text-blue-500";
+    if (tempInCelsius > 25) return "text-orange-500";
     return "text-foreground";
   };
   
@@ -107,16 +160,93 @@ export function ThermostatControl({ name, thermostatType, initialTargetTemp = 22
 
   return (
     <Card className="w-full max-w-md mx-auto shadow-xl rounded-xl overflow-hidden bg-card/80 backdrop-blur-sm">
-      <CardHeader className="text-center pb-2">
-        <CardTitle className="font-headline text-xl">{name}</CardTitle>
-        <CardDescription>
-          {thermostatType === "split" ? "Split Unit Air Conditioner" : "Central Air System"}
-        </CardDescription>
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start">
+          <div className="text-center flex-grow">
+            <CardTitle className="font-headline text-xl">{name}</CardTitle>
+            <CardDescription>
+              {brand} - {thermostatType === "split" ? "Split Unit" : "Central Air"}
+            </CardDescription>
+          </div>
+          <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary -mt-2 -mr-2">
+                <Settings className="h-5 w-5" />
+                <span className="sr-only">Settings</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none font-headline">Thermostat Settings</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Customize your thermostat.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor={`name-${initialName}`}>Name</Label>
+                    <Input
+                      id={`name-${initialName}`}
+                      value={editableName}
+                      onChange={(e) => setEditableName(e.target.value)}
+                      className="col-span-2 h-8"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor={`brand-${initialName}`}>Brand</Label>
+                    <Input
+                      id={`brand-${initialName}`}
+                      value={editableBrand}
+                      onChange={(e) => setEditableBrand(e.target.value)}
+                      className="col-span-2 h-8"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label>Type</Label>
+                    <RadioGroup
+                      value={thermostatType}
+                      onValueChange={(value: ThermostatType) => setThermostatType(value)}
+                      className="col-span-2 flex gap-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="central" id={`type-central-${initialName}`} />
+                        <Label htmlFor={`type-central-${initialName}`} className="font-normal">Central</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="split" id={`type-split-${initialName}`} />
+                        <Label htmlFor={`type-split-${initialName}`} className="font-normal">Split</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label>Unit</Label>
+                    <RadioGroup
+                      value={unit}
+                      onValueChange={(value: TemperatureUnit) => setUnit(value)}
+                      className="col-span-2 flex gap-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="C" id={`unit-c-${initialName}`} />
+                        <Label htmlFor={`unit-c-${initialName}`} className="font-normal">°C</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="F" id={`unit-f-${initialName}`} />
+                        <Label htmlFor={`unit-f-${initialName}`} className="font-normal">°F</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
+                <Button onClick={handleSettingsSave} size="sm">Save Changes</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
         <div className="flex flex-col items-center space-y-2">
-          <div className={cn("text-7xl font-bold tracking-tight transition-colors duration-300", getTempColor(currentTemp))}>
-            {currentTemp.toFixed(1)}°C
+          <div className={cn("text-7xl font-bold tracking-tight transition-colors duration-300", getTempColor(currentTempC))}>
+            {displayCurrentTemp.toFixed(1)}°{unit}
           </div>
           <div className="flex items-center space-x-2 text-muted-foreground">
             <Droplets className="h-5 w-5" />
@@ -127,7 +257,7 @@ export function ThermostatControl({ name, thermostatType, initialTargetTemp = 22
         <div className="w-full space-y-2">
           <div className="flex justify-between items-center">
             <label htmlFor={`target-temp-slider-${name}`} className="text-sm font-medium text-muted-foreground">
-              Target: {targetTemp}°C
+              Target: {displayTargetTemp.toFixed(1)}°{unit}
             </label>
             {isBoostActive && thermostatType === 'split' && (
               <span className="text-xs font-semibold text-primary flex items-center">
@@ -137,11 +267,11 @@ export function ThermostatControl({ name, thermostatType, initialTargetTemp = 22
           </div>
           <Slider
             id={`target-temp-slider-${name}`}
-            min={10}
-            max={30}
-            step={0.5}
-            value={[targetTemp]}
-            onValueChange={(value) => setTargetTemp(value[0])}
+            min={sliderMinC}
+            max={sliderMaxC}
+            step={sliderStepC}
+            value={[targetTempC]}
+            onValueChange={(value) => setTargetTempC(value[0])}
             disabled={mode === 'off'}
             className="[&_[role=slider]]:h-6 [&_[role=slider]]:w-6 [&_[role=slider]]:shadow-md"
           />

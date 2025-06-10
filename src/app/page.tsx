@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
-import { ThermostatControl } from '@/components/thermostat/ThermostatControl';
+import { ThermostatControl, type ThermostatType } from '@/components/thermostat/ThermostatControl';
 import { SmartScheduleForm } from '@/components/smart-schedule/SmartScheduleForm';
 import { SmartScheduleDisplay } from '@/components/smart-schedule/SmartScheduleDisplay';
 import type { SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
@@ -32,8 +32,20 @@ export default function ThermoAIDashboard() {
                 Live Controls
               </h2>
               <div className="space-y-6">
-                <ThermostatControl name="Living Room" thermostatType="central" initialTargetTemp={21} />
-                <ThermostatControl name="Bedroom" thermostatType="split" initialTargetTemp={23} />
+                <ThermostatControl 
+                  initialName="Living Room" 
+                  initialThermostatType="central" 
+                  initialTargetTempC={21} 
+                  initialBrand="Nest"
+                  initialUnit="C"
+                />
+                <ThermostatControl 
+                  initialName="Bedroom" 
+                  initialThermostatType="split" 
+                  initialTargetTempC={23} 
+                  initialBrand="Daikin"
+                  initialUnit="F"
+                />
               </div>
             </section>
           </div>
