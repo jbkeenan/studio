@@ -50,10 +50,29 @@ export async function parseIcalFeedAction(
       return { success: false, error: `Invalid input: ${errorMessages}` };
     }
     const result = await parseIcalFeed(validatedInput.data);
-    if (result.error && (!result.events || result.events.length === 0)) {
-        return { success: false, error: result.error, data: {events: result.events || []} };
+
+    const benignErrorMessages = [
+      "No VEVENT components with DTSTART found.",
+      "No events found in the iCalendar data.",
+      "The iCalendar data is valid but contains no events."
+    ];
+
+    // Check if the error message from the flow indicates an empty (but valid) calendar
+    if (result.error && 
+        benignErrorMessages.some(msg => result.error!.toLowerCase().includes(msg.toLowerCase())) &&
+        (!result.events || result.events.length === 0)
+    ) {
+      // This is effectively a success case: the calendar is empty.
+      // Return success true, empty events, and no error string.
+      return { success: true, data: { events: [] } };
     }
-    // If there are events, even with a minor error, consider it a partial success for display
+
+    // If there's an error from the flow (and it's not one of the benign ones for an empty calendar)
+    if (result.error) {
+        return { success: false, error: result.error, data: { events: result.events || [] } };
+    }
+    
+    // If no error from the flow
     return { success: true, data: result };
   } catch (error) {
     console.error("Error parsing iCal feed in action:", error);
@@ -61,3 +80,4 @@ export async function parseIcalFeedAction(
     return { success: false, error: errorMessage };
   }
 }
+
