@@ -28,30 +28,32 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {mockProperties.map((property) => (
-              <Link href={`/dashboard/property/${property.id}`} key={property.id} passHref legacyBehavior>
-                <a className="block h-full">
-                  <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full flex flex-col rounded-xl bg-card hover:bg-card/90">
-                    <div className="relative w-full h-48">
-                      <Image
-                        src={property.imageUrl}
-                        alt={`Image of ${property.name}`}
-                        layout="fill"
-                        objectFit="cover"
-                        data-ai-hint={property.imageHint}
-                        className="rounded-t-xl"
-                      />
+              <Link 
+                href={`/dashboard/property/${property.id}`} 
+                key={property.id} 
+                className="block h-full"
+              >
+                <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full flex flex-col rounded-xl bg-card hover:bg-card/90">
+                  <div className="relative w-full h-48">
+                    <Image
+                      src={property.imageUrl}
+                      alt={`Image of ${property.name}`}
+                      layout="fill"
+                      objectFit="cover"
+                      data-ai-hint={property.imageHint}
+                      className="rounded-t-xl"
+                    />
+                  </div>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="font-headline text-lg text-primary">{property.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-grow pt-0">
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span>{property.address}</span>
                     </div>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="font-headline text-lg text-primary">{property.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow pt-0">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
-                        <span>{property.address}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </a>
+                  </CardContent>
+                </Card>
               </Link>
             ))}
           </div>
