@@ -1,3 +1,4 @@
+
 // src/app/page.tsx
 "use client";
 
@@ -8,7 +9,7 @@ import { SmartScheduleForm } from '@/components/smart-schedule/SmartScheduleForm
 import { SmartScheduleDisplay } from '@/components/smart-schedule/SmartScheduleDisplay';
 import type { SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, BookText } from "lucide-react"; // Added BookText for icon
 
 export default function ThermoAIDashboard() {
   const [scheduleData, setScheduleData] = useState<SmartScheduleSuggestionsOutput | null>(null);
@@ -32,17 +33,17 @@ export default function ThermoAIDashboard() {
                 Live Controls
               </h2>
               <div className="space-y-6">
-                <ThermostatControl 
-                  initialName="Living Room" 
-                  initialThermostatType="central" 
-                  initialTargetTempC={21} 
+                <ThermostatControl
+                  initialName="Living Room"
+                  initialThermostatType="central"
+                  initialTargetTempC={21}
                   initialBrand="Nest"
                   initialUnit="C"
                 />
-                <ThermostatControl 
-                  initialName="Bedroom" 
-                  initialThermostatType="split" 
-                  initialTargetTempC={23} 
+                <ThermostatControl
+                  initialName="Bedroom"
+                  initialThermostatType="split"
+                  initialTargetTempC={23}
                   initialBrand="Daikin"
                   initialUnit="F"
                 />
@@ -63,8 +64,8 @@ export default function ThermoAIDashboard() {
                   <AlertDescription>{serverError}</AlertDescription>
                 </Alert>
               )}
-              <SmartScheduleForm 
-                onSubmitSuccess={handleScheduleSuccess} 
+              <SmartScheduleForm
+                onSubmitSuccess={handleScheduleSuccess}
                 isLoading={isLoadingSuggestions}
                 setIsLoading={setIsLoadingSuggestions}
                 setServerError={setServerError}
@@ -80,6 +81,29 @@ export default function ThermoAIDashboard() {
             </section>
           </div>
         </div>
+
+        {/* Developer Notes Section */}
+        <div className="mt-12 p-6 border rounded-xl bg-card text-card-foreground shadow-lg">
+          <div className="flex items-center mb-3">
+            <BookText className="h-6 w-6 mr-3 text-primary" />
+            <h3 className="font-headline text-xl font-semibold">Developer Notes & Session Continuity</h3>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            To help maintain context across different development sessions with the AI, it's useful to keep your own log of:
+          </p>
+          <ul className="list-disc list-inside text-sm text-muted-foreground my-2 ml-4 space-y-1">
+            <li>Key features discussed and implemented.</li>
+            <li>Important decisions or changes made.</li>
+            <li>Overall project goals and specific objectives for the session.</li>
+            <li>Any unresolved questions or ideas for future development.</li>
+          </ul>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            When starting a new session, you can provide a summary or relevant snippets from your notes to the AI.
+            This helps the AI quickly get up to speed on the project's current state and your immediate goals.
+            This area serves as a reminder for your personal record-keeping; the AI does not directly access or store this information.
+          </p>
+        </div>
+
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t mt-8">
         © {new Date().getFullYear()} ThermoAI. All rights reserved.
