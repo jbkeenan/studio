@@ -36,7 +36,7 @@ export default function PropertyDetailPage() {
   const [calendarDate, setCalendarDate] = useState<Date | undefined>(new Date());
 
   // iCal and Automation State
-  const [icalUrl, setIcalUrl] = useState<string>('');
+  const [icalUrl, setIcalUrl] = useState<string>('https://app.ownerrez.com/feeds/ical/6b5cb4a943524fd1b9231177736b3053');
   const [hoursBeforeCheckIn, setHoursBeforeCheckIn] = useState<number>(2);
   const [hoursAfterCheckOut, setHoursAfterCheckOut] = useState<number>(1);
   const [checkoutPresetTemp, setCheckoutPresetTemp] = useState<string>('18°C / 64°F');
