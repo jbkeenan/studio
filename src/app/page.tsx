@@ -9,7 +9,7 @@ import { SmartScheduleForm } from '@/components/smart-schedule/SmartScheduleForm
 import { SmartScheduleDisplay } from '@/components/smart-schedule/SmartScheduleDisplay';
 import type { SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, BookText } from "lucide-react"; // Added BookText for icon
+import { AlertCircle, BookText } from "lucide-react"; 
 
 export default function ThermoAIDashboard() {
   const [scheduleData, setScheduleData] = useState<SmartScheduleSuggestionsOutput | null>(null);
@@ -86,21 +86,21 @@ export default function ThermoAIDashboard() {
         <div className="mt-12 p-6 border rounded-xl bg-card text-card-foreground shadow-lg">
           <div className="flex items-center mb-3">
             <BookText className="h-6 w-6 mr-3 text-primary" />
-            <h3 className="font-headline text-xl font-semibold">Developer Notes & Session Continuity</h3>
+            <h3 className="font-headline text-xl font-semibold">Your Developer Notes Area</h3>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            To help maintain context across different development sessions with the AI, it's useful to keep your own log of:
+            This space is a reminder to summarize and add to your own developer notes for session continuity. When you start a new session with the AI, you can share these notes. Consider logging:
           </p>
           <ul className="list-disc list-inside text-sm text-muted-foreground my-2 ml-4 space-y-1">
             <li>Key features discussed and implemented.</li>
-            <li>Important decisions or changes made.</li>
-            <li>Overall project goals and specific objectives for the session.</li>
+            <li>Important decisions, changes made, and their rationale.</li>
+            <li>Overall project goals and specific objectives for the current session.</li>
             <li>Any unresolved questions or ideas for future development.</li>
+            <li>Prompts given to the AI and summaries of its responses.</li>
           </ul>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            When starting a new session, you can provide a summary or relevant snippets from your notes to the AI.
-            This helps the AI quickly get up to speed on the project's current state and your immediate goals.
-            This area serves as a reminder for your personal record-keeping; the AI does not directly access or store this information.
+            By providing a summary from your notes at the beginning of a new session, you help the AI understand the project's current state and your immediate goals.
+            Remember, this section is a static guide for your personal record-keeping; the AI does not directly access or store information here.
           </p>
         </div>
 
