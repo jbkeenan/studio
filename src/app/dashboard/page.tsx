@@ -2,104 +2,60 @@
 // src/app/dashboard/page.tsx
 "use client";
 
-import { useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { Header } from '@/components/layout/Header';
-import { ThermostatControl } from '@/components/thermostat/ThermostatControl';
-import { SmartScheduleForm } from '@/components/smart-schedule/SmartScheduleForm';
-import { SmartScheduleDisplay } from '@/components/smart-schedule/SmartScheduleDisplay';
-import type { SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, CalendarDays } from "lucide-react";
+import { mockProperties } from '@/lib/mock-properties';
+import { MapPin, Home as HomeIcon } from 'lucide-react'; // Renamed Home to HomeIcon to avoid conflict
 
 export default function DashboardPage() {
-  const [scheduleData, setScheduleData] = useState<SmartScheduleSuggestionsOutput | null>(null);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [date, setDate] = useState<Date | undefined>(new Date());
-
-  const handleScheduleSuccess = (data: SmartScheduleSuggestionsOutput) => {
-    setScheduleData(data);
-    setServerError(null); // Clear previous errors
-  };
-
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* Left Column: Thermostats & Calendar */}
-          <div className="lg:col-span-1 space-y-8">
-            <section aria-labelledby="thermostat-control-heading">
-              <h2 id="thermostat-control-heading" className="text-2xl font-headline font-semibold mb-4 text-primary">
-                Live Controls
-              </h2>
-              <div className="space-y-6">
-                <ThermostatControl
-                  initialName="Living Room"
-                  initialThermostatType="central"
-                  initialTargetTempC={21}
-                  initialBrand="Nest"
-                  initialUnit="C"
-                />
-                <ThermostatControl
-                  initialName="Bedroom"
-                  initialThermostatType="split"
-                  initialTargetTempC={23}
-                  initialBrand="Daikin"
-                  initialUnit="F"
-                />
-              </div>
-            </section>
-
-            <section aria-labelledby="calendar-heading">
-                <h2 id="calendar-heading" className="text-2xl font-headline font-semibold mb-4 text-primary flex items-center">
-                    <CalendarDays className="mr-2 h-6 w-6" /> Calendar
-                </h2>
-                <Card className="shadow-lg rounded-xl">
-                    <CardContent className="p-0 flex justify-center items-center">
-                    <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                        className="rounded-md"
-                    />
-                    </CardContent>
-                </Card>
-            </section>
-          </div>
-
-          {/* Right Column: Smart Schedule Suggestions */}
-          <div className="lg:col-span-2 space-y-8">
-            <section aria-labelledby="smart-schedule-heading">
-              <h2 id="smart-schedule-heading" className="text-2xl font-headline font-semibold mb-4 text-primary">
-                AI Scheduling Assistant
-              </h2>
-              {serverError && (
-                <Alert variant="destructive" className="mb-6">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{serverError}</AlertDescription>
-                </Alert>
-              )}
-              <SmartScheduleForm
-                onSubmitSuccess={handleScheduleSuccess}
-                isLoading={isLoadingSuggestions}
-                setIsLoading={setIsLoadingSuggestions}
-                setServerError={setServerError}
-              />
-              {isLoadingSuggestions && (
-                <div className="mt-8 text-center py-4">
-                  <p className="text-muted-foreground animate-pulse">AI is thinking... Please wait.</p>
-                </div>
-              )}
-              {!isLoadingSuggestions && scheduleData && (
-                <SmartScheduleDisplay data={scheduleData} />
-              )}
-            </section>
-          </div>
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-headline font-semibold text-primary">Your Properties</h1>
+          <p className="text-muted-foreground">Select a property to view and manage its thermostats and schedules.</p>
         </div>
+        
+        {mockProperties.length === 0 ? (
+          <div className="text-center py-10">
+            <HomeIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No properties found. Add your first property to get started.</p>
+            {/* Potential "Add Property" button can be added here in the future */}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {mockProperties.map((property) => (
+              <Link href={`/dashboard/property/${property.id}`} key={property.id} passHref legacyBehavior>
+                <a className="block h-full">
+                  <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full flex flex-col rounded-xl bg-card hover:bg-card/90">
+                    <div className="relative w-full h-48">
+                      <Image
+                        src={property.imageUrl}
+                        alt={`Image of ${property.name}`}
+                        layout="fill"
+                        objectFit="cover"
+                        data-ai-hint={property.imageHint}
+                        className="rounded-t-xl"
+                      />
+                    </div>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-headline text-lg text-primary">{property.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-grow pt-0">
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
+                        <span>{property.address}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </a>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t mt-auto">
         © {new Date().getFullYear()} ThermoAI. All rights reserved.
