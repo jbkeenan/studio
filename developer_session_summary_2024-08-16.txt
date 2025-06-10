@@ -1,0 +1,65 @@
+## ThermoAI - Developer Session Summary
+
+**Date:** 2024-08-16
+
+**Session Goal:** Enhance the thermostat control interface, add customization options per thermostat, and establish a method for maintaining session continuity for development.
+
+### Overall Project Rationale (ThermoAI):
+
+ThermoAI aims to be an intelligent thermostat automation application, particularly for users managing multiple properties. The core goals include:
+*   Providing **AI-powered smart schedule suggestions** to optimize energy usage based on property characteristics, occupancy, and weather.
+*   Offering an **improved and intuitive thermostat interface** with features like circular temperature controls, current temperature/humidity display, and quick presets.
+*   Implementing a **smart notification system** for alerts, maintenance reminders, and energy usage summaries.
+*   Ensuring an **enhanced mobile experience** through responsive design and interactive elements.
+*   Adhering to a specific **style guide** (soft blue primary, light blue background, soft green accent, PT Sans font, consistent icon usage).
+
+### Main Features Worked On (This Session):
+
+1.  **Enhanced `ThermostatControl` Component:**
+    *   Added `name` prop for distinct labeling of thermostats (e.g., "Living Room", "Bedroom").
+    *   Introduced `thermostatType` prop ("split" or "central") to differentiate thermostat capabilities.
+    *   Conditionally rendered "Boost Mode" switch and "Fan Speed" select controls specifically for "split" unit thermostats, as these features are common for such units.
+
+2.  **Thermostat-Specific Settings Popover:**
+    *   Integrated a settings icon (gear) on each thermostat card.
+    *   Clicking the icon opens a `Popover` containing customization options.
+    *   **Editable Fields:**
+        *   **Name:** Users can change the display name of the thermostat.
+        *   **Brand:** Users can specify the brand of the thermostat (e.g., "Nest", "Daikin").
+        *   **Type:** Users can select the thermostat type ("Central Air" or "Split Unit") using a dropdown (`Select` component).
+        *   **Unit:** Users can toggle the temperature display unit between Celsius (°C) and Fahrenheit (°F) using a `RadioGroup`.
+    *   Implemented internal temperature management in Celsius, with dynamic conversion for display based on the selected unit.
+
+3.  **Developer Notes Section on UI:**
+    *   Added a static "Your Developer Notes Area" to the main page (`page.tsx`). This section serves as a visual reminder and guide for you (the user) to manually log key information from our sessions to ensure continuity if a session resets or for future reference. It suggests logging features discussed, decisions made, project goals, unresolved questions, and prompts given to the AI with summaries of responses.
+
+### Key Changes Made to Files (and Why):
+
+*   **`src/components/thermostat/ThermostatControl.tsx`:**
+    *   **Props Added:** `initialName`, `initialThermostatType`, `initialTargetTempC` (clarified to always be in Celsius), `initialBrand`, `initialUnit`. This was to allow instantiation of thermostats with varied default configurations and functionalities.
+    *   **State Variables Added:** For `name`, `brand`, `thermostatType`, `unit`, `currentTempC`, `targetTempC`, `humidity`, `mode`, `fanSpeed`, `isBoostActive`, `isSettingsOpen`, and corresponding `editable...` states for the popover. This was to manage the individual state and settings of each thermostat.
+    *   **Conditional UI for Split Units:** Added `<Select>` for fan speed and `<Switch>` for boost mode, rendered only if `thermostatType` is "split". This directly addressed the requirement for specific features for split AC units.
+    *   **Settings Popover Implementation:** Used `Popover`, `Input`, `Select`, `RadioGroup`, and `Button` from `shadcn/ui` to create the settings interface. This provides a clean and consistent way to edit thermostat-specific details without cluttering the main card.
+    *   **Temperature Logic:** Ensured `initialTargetTempC` is always treated as Celsius. Implemented `celsiusToFahrenheit` and `fahrenheitToCelsius` helper functions. `displayCurrentTemp` and `displayTargetTemp` use `useMemo` to show temperatures in the user-selected unit, while internal logic and the slider work with Celsius values. This ensures consistency and simplifies temperature management.
+    *   **Client-Side Rendering Guard:** Added `isClient` state with `useEffect` to prevent hydration errors, especially for components relying on `Math.random` or initial browser-specific values. A loading state with `Loader2` is shown until the component is mounted on the client.
+
+*   **`src/app/page.tsx`:**
+    *   **Thermostat Instantiation:** Updated the `ThermostatControl` component usage to include the new props like `initialName`, `initialThermostatType`, `initialBrand`, and `initialUnit`. This demonstrates the new capabilities, setting up "Living Room" as a central unit (Celsius) and "Bedroom" as a split unit (initially Fahrenheit).
+    *   **Developer Notes Area:** Added a new `div` section with a `BookText` icon and descriptive text to guide you on maintaining session notes. This was a direct response to our discussion about session memory and continuity.
+
+### Important Decisions Made (This Session):
+
+*   **Internal Temperature Unit:** Decided to store and manage all core temperature values (like `targetTempC`, `currentTempC`, slider min/max/step) in Celsius within the `ThermostatControl` component and perform conversions to/from Fahrenheit only for display and user input where necessary. This simplifies the logic and maintains a consistent internal representation.
+*   **UI for Settings:** Opted for a `Popover` component for thermostat settings to keep the main thermostat card clean and provide an organized space for less frequently accessed options.
+*   **Thermostat Type Selection:** Changed the thermostat type selection in the settings from a `RadioGroup` to a `Select` component for better UI consistency, as per your request.
+*   **Developer Notes Approach:** Established that I (the AI) cannot directly write to external log files for session memory. Instead, a static UI section was added to prompt you to keep your own notes, and I can assist by generating summaries (like this one) for you to copy.
+
+### Unresolved Points or Future Considerations (from this session):
+
+*   While the UI for individual thermostat controls and settings is now more robust, the core AI features (smart schedule suggestions, AI thinking animations, graph animations for energy usage) are still pending full implementation beyond the existing Genkit flow and basic form.
+*   The notification system is currently using mock data; integration with actual system events or alerts is a future step.
+*   The overall mobile experience and responsiveness for these new components should be continuously reviewed.
+
+---
+
+This file is for your reference. When we start a new session, referring to a summary like this will help us get back on track quickly!
