@@ -51,15 +51,17 @@ export async function parseIcalFeedAction(
     }
     const result = await parseIcalFeed(validatedInput.data);
 
+    // List of phrases indicating an empty but valid calendar, checked case-insensitively.
     const benignErrorMessages = [
-      "No VEVENT components with DTSTART found.",
-      "No events found in the iCalendar data.",
-      "The iCalendar data is valid but contains no events."
+      "no vevent components with dtstart found",
+      "no events found in the icalendar data",
+      "the icalendar data is valid but contains no events",
+      "the icalendar data is valid but contains no vevent components"
     ];
 
     // Check if the error message from the flow indicates an empty (but valid) calendar
     if (result.error && 
-        benignErrorMessages.some(msg => result.error!.toLowerCase().includes(msg.toLowerCase())) &&
+        benignErrorMessages.some(msg => result.error!.toLowerCase().includes(msg)) &&
         (!result.events || result.events.length === 0)
     ) {
       // This is effectively a success case: the calendar is empty.
