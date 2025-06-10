@@ -4,8 +4,8 @@
  * @fileOverview A Genkit flow for parsing iCalendar (iCal) feeds.
  *
  * - parseIcalFeed - Fetches and parses an iCal feed URL.
- * - ParseIcalInputSchema - Input schema for the iCal URL.
- * - ParseIcalOutputSchema - Output schema for the parsed calendar events.
+ * - ParseIcalInput - Input type for the iCal URL.
+ * - ParseIcalOutput - Output type for the parsed calendar events.
  * - IcalEvent - Type for a single parsed iCal event.
  */
 
@@ -22,12 +22,12 @@ const IcalEventSchema = z.object({
 });
 export type IcalEvent = z.infer<typeof IcalEventSchema>;
 
-export const ParseIcalInputSchema = z.object({
+const ParseIcalInputSchema = z.object({
   icalUrl: z.string().url({ message: "Invalid URL format for iCal feed." }).describe("The URL of the iCalendar (.ics) feed."),
 });
 export type ParseIcalInput = z.infer<typeof ParseIcalInputSchema>;
 
-export const ParseIcalOutputSchema = z.object({
+const ParseIcalOutputSchema = z.object({
   events: z.array(IcalEventSchema).describe("A list of parsed calendar events."),
   error: z.string().optional().describe("Error message if parsing failed."),
 });

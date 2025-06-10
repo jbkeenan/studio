@@ -3,10 +3,10 @@
 "use server";
 
 import { smartScheduleSuggestions, type SmartScheduleSuggestionsInput, type SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
-import { parseIcalFeed, ParseIcalInputSchema, type ParseIcalInput, type ParseIcalOutput } from '@/ai/flows/parse-ical-flow';
+import { parseIcalFeed, type ParseIcalInput, type ParseIcalOutput } from '@/ai/flows/parse-ical-flow';
 import { z } from 'zod';
 
-// Re-define or import the input schema if you need to use it directly in server components for validation before calling the action
+// Schema for SmartScheduleSuggestions
 const SmartScheduleSuggestionsInputSchema = z.object({
   propertyType: z.string().min(1, "Property type is required."),
   location: z.string().min(1, "Location is required."),
@@ -33,6 +33,11 @@ export async function getSmartScheduleSuggestionsAction(
     return { success: false, error: "Failed to get smart schedule suggestions. Please try again." };
   }
 }
+
+// Schema for ParseIcalInput - defined locally as it cannot be exported from a 'use server' file.
+const ParseIcalInputSchema = z.object({
+  icalUrl: z.string().url({ message: "Invalid URL format for iCal feed." }).describe("The URL of the iCalendar (.ics) feed."),
+});
 
 export async function parseIcalFeedAction(
   input: ParseIcalInput
