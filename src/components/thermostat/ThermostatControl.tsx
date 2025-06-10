@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Loader2 } from 'lucide-react'; // Ensure Loader2 is imported if used in loading state
 
 type ThermostatMode = "cool" | "heat" | "auto" | "off";
 type Preset = "Away" | "Comfort" | "Eco";
@@ -57,6 +58,9 @@ export function ThermostatControl({
   // Editable states for popover
   const [editableName, setEditableName] = useState(name);
   const [editableBrand, setEditableBrand] = useState(brand);
+  const [editableThermostatType, setEditableThermostatType] = useState<ThermostatType>(thermostatType);
+  const [editableUnit, setEditableUnit] = useState<TemperatureUnit>(unit);
+
 
   useEffect(() => {
     setIsClient(true);
@@ -80,6 +84,14 @@ export function ThermostatControl({
   useEffect(() => {
     setEditableBrand(brand);
   }, [brand]);
+
+  useEffect(() => {
+    setEditableThermostatType(thermostatType);
+  }, [thermostatType]);
+
+  useEffect(() => {
+    setEditableUnit(unit);
+  }, [unit]);
 
 
   const displayCurrentTemp = useMemo(() => {
@@ -124,7 +136,8 @@ export function ThermostatControl({
   const handleSettingsSave = () => {
     setName(editableName);
     setBrand(editableBrand);
-    // Thermostat type and unit are directly updated by their respective controls
+    setThermostatType(editableThermostatType);
+    setUnit(editableUnit);
     setIsSettingsOpen(false);
   };
   
@@ -168,7 +181,15 @@ export function ThermostatControl({
               {brand} - {thermostatType === "split" ? "Split Unit" : "Central Air"}
             </CardDescription>
           </div>
-          <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <Popover open={isSettingsOpen} onOpenChange={(open) => {
+            setIsSettingsOpen(open);
+            if (!open) { // Reset editable fields if popover is closed without saving
+              setEditableName(name);
+              setEditableBrand(brand);
+              setEditableThermostatType(thermostatType);
+              setEditableUnit(unit);
+            }
+          }}>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary -mt-2 -mr-2">
                 <Settings className="h-5 w-5" />
@@ -183,7 +204,7 @@ export function ThermostatControl({
                     Customize your thermostat.
                   </p>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-3">
                   <div className="grid grid-cols-3 items-center gap-4">
                     <Label htmlFor={`name-${initialName}`}>Name</Label>
                     <Input
@@ -204,26 +225,24 @@ export function ThermostatControl({
                   </div>
                   <div className="grid grid-cols-3 items-center gap-4">
                     <Label>Type</Label>
-                    <RadioGroup
-                      value={thermostatType}
-                      onValueChange={(value: ThermostatType) => setThermostatType(value)}
-                      className="col-span-2 flex gap-2"
+                    <Select 
+                      value={editableThermostatType} 
+                      onValueChange={(value: ThermostatType) => setEditableThermostatType(value)}
                     >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="central" id={`type-central-${initialName}`} />
-                        <Label htmlFor={`type-central-${initialName}`} className="font-normal">Central</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="split" id={`type-split-${initialName}`} />
-                        <Label htmlFor={`type-split-${initialName}`} className="font-normal">Split</Label>
-                      </div>
-                    </RadioGroup>
+                      <SelectTrigger className="col-span-2 h-8">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="central">Central Air</SelectItem>
+                        <SelectItem value="split">Split Unit</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid grid-cols-3 items-center gap-4">
                     <Label>Unit</Label>
                     <RadioGroup
-                      value={unit}
-                      onValueChange={(value: TemperatureUnit) => setUnit(value)}
+                      value={editableUnit}
+                      onValueChange={(value: TemperatureUnit) => setEditableUnit(value)}
                       className="col-span-2 flex gap-2"
                     >
                       <div className="flex items-center space-x-2">
@@ -345,11 +364,4 @@ export function ThermostatControl({
       </CardFooter>
     </Card>
   );
-}
-
-// Helper for loading state if needed elsewhere, or can be kept local.
-function Loader2(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-  )
 }
