@@ -2,7 +2,7 @@
 // src/app/dashboard/property/[propertyId]/page.tsx
 "use client";
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
@@ -12,17 +12,18 @@ import { SmartScheduleDisplay } from '@/components/smart-schedule/SmartScheduleD
 import type { SmartScheduleSuggestionsOutput } from '@/ai/flows/smart-schedule-suggestions';
 import type { IcalEvent } from '@/ai/flows/parse-ical-flow';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Calendar as ShadCalendar } from "@/components/ui/calendar"; // Renamed to avoid conflict
+import { Calendar as ShadCalendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CalendarDays, ChevronLeft, Home as HomeIcon, Loader2, Rss, Settings2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertCircle, CalendarDays, ChevronLeft, Home as HomeIcon, Loader2, Rss, Settings2, ExternalLink } from "lucide-react";
 import { getPropertyById, type Property } from '@/lib/mock-properties';
 import { parseIcalFeedAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, getMonth, getYear, isWithinInterval, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
 export default function PropertyDetailPage() {
   const params = useParams();
@@ -33,9 +34,9 @@ export default function PropertyDetailPage() {
   const [scheduleData, setScheduleData] = useState<SmartScheduleSuggestionsOutput | null>(null);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  
   const [calendarDate, setCalendarDate] = useState<Date | undefined>(new Date());
 
-  // iCal and Automation State
   const [icalUrl, setIcalUrl] = useState<string>('https://app.ownerrez.com/feeds/ical/6b5cb4a943524fd1b9231177736b3053');
   const [hoursBeforeCheckIn, setHoursBeforeCheckIn] = useState<number>(2);
   const [hoursAfterCheckOut, setHoursAfterCheckOut] = useState<number>(1);
@@ -44,36 +45,30 @@ export default function PropertyDetailPage() {
   const [isLoadingIcal, setIsLoadingIcal] = useState(false);
   const [icalError, setIcalError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (propertyId) {
-      const foundProperty = getPropertyById(propertyId);
-      setProperty(foundProperty || null);
-    }
-  }, [propertyId]);
+  const [selectedEvent, setSelectedEvent] = useState<IcalEvent | null>(null);
+  const [isEventDetailDialogOpen, setIsEventDetailDialogOpen] = useState(false);
 
-  const handleScheduleSuccess = (data: SmartScheduleSuggestionsOutput) => {
-    setScheduleData(data);
-    setServerError(null);
-  };
+  const localStorageKeyPrefix = `thermoai_prop_${propertyId}_`;
 
-  const handleLoadIcal = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!icalUrl) {
+  const fetchAndDisplayIcalEvents = useCallback(async (urlToFetch: string) => {
+    if (!urlToFetch) {
       setIcalError("Please enter an iCal feed URL.");
+      toast({ title: "Missing URL", description: "iCal feed URL is required.", variant: "destructive" });
       return;
     }
     setIsLoadingIcal(true);
     setIcalError(null);
-    setBookingEvents([]);
+    // setBookingEvents([]); // Keep old events while loading new ones for better UX? Or clear? Let's clear.
 
-    const result = await parseIcalFeedAction({ icalUrl });
+    const result = await parseIcalFeedAction({ icalUrl: urlToFetch });
 
     if (result.success && result.data) {
       setBookingEvents(result.data.events || []);
       if (result.data.events?.length === 0 && !result.data.error) {
-        toast({ title: "Calendar Sync", description: "No upcoming bookings found in the iCal feed." });
-      } else if (result.data.events?.length > 0) {
-        toast({ title: "Calendar Synced", description: `Found ${result.data.events.length} booking(s).` });
+         // Only show toast if it's a manual sync, not initial load
+        if (!isLoadingIcal) toast({ title: "Calendar Sync", description: "No bookings found in the iCal feed." });
+      } else if (result.data.events && result.data.events.length > 0) {
+        if (!isLoadingIcal) toast({ title: "Calendar Synced", description: `Found ${result.data.events.length} booking(s).` });
       }
       if(result.data.error) {
         setIcalError(`Partial success: ${result.data.error}`);
@@ -84,17 +79,80 @@ export default function PropertyDetailPage() {
       toast({ title: "Calendar Sync Error", description: result.error || "Unknown error.", variant: "destructive" });
     }
     setIsLoadingIcal(false);
-  };
-  
+  }, [toast, isLoadingIcal]); // Added isLoadingIcal to deps
+
+  useEffect(() => {
+    if (propertyId) {
+      const foundProperty = getPropertyById(propertyId);
+      setProperty(foundProperty || null);
+
+      // Load settings from localStorage
+      const storedIcalUrl = localStorage.getItem(`${localStorageKeyPrefix}icalUrl`);
+      const storedHoursBefore = localStorage.getItem(`${localStorageKeyPrefix}hoursBeforeCheckIn`);
+      const storedHoursAfter = localStorage.getItem(`${localStorageKeyPrefix}hoursAfterCheckOut`);
+      const storedCheckoutTemp = localStorage.getItem(`${localStorageKeyPrefix}checkoutPresetTemp`);
+
+      let urlToLoad = icalUrl; // Default to state's default URL
+      if (storedIcalUrl) {
+        setIcalUrl(storedIcalUrl);
+        urlToLoad = storedIcalUrl;
+      }
+      
+      if (storedHoursBefore) setHoursBeforeCheckIn(parseInt(storedHoursBefore, 10));
+      if (storedHoursAfter) setHoursAfterCheckOut(parseInt(storedHoursAfter, 10));
+      if (storedCheckoutTemp) setCheckoutPresetTemp(storedCheckoutTemp);
+      
+      fetchAndDisplayIcalEvents(urlToLoad);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId, localStorageKeyPrefix]); // fetchAndDisplayIcalEvents removed from deps to avoid loop with its own isLoadingIcal dep
+
   const handleSaveAutomationSettings = (e: FormEvent) => {
     e.preventDefault();
-    // Future: Implement saving these settings
+    localStorage.setItem(`${localStorageKeyPrefix}icalUrl`, icalUrl);
+    localStorage.setItem(`${localStorageKeyPrefix}hoursBeforeCheckIn`, hoursBeforeCheckIn.toString());
+    localStorage.setItem(`${localStorageKeyPrefix}hoursAfterCheckOut`, hoursAfterCheckOut.toString());
+    localStorage.setItem(`${localStorageKeyPrefix}checkoutPresetTemp`, checkoutPresetTemp);
     toast({
-      title: "Settings Saved (Mock)",
-      description: "Automation settings have been saved (simulated).",
+      title: "Settings Saved",
+      description: "Automation settings have been saved locally for this property.",
     });
   };
 
+  const handleManualSync = () => {
+    fetchAndDisplayIcalEvents(icalUrl);
+  };
+  
+  const handleScheduleSuccess = (data: SmartScheduleSuggestionsOutput) => {
+    setScheduleData(data);
+    setServerError(null);
+  };
+
+  const eventsForSelectedMonth = useMemo(() => {
+    if (!calendarDate || bookingEvents.length === 0) return [];
+    const year = getYear(calendarDate);
+    const month = getMonth(calendarDate); // 0-indexed
+    const interval = {
+      start: startOfMonth(new Date(year, month, 1)),
+      end: endOfMonth(new Date(year, month, 1)),
+    };
+    return bookingEvents.filter(event => {
+      try {
+        const startDate = parseISO(event.startDate);
+        const endDate = parseISO(event.endDate);
+        return isWithinInterval(startDate, interval) || isWithinInterval(endDate, interval) || 
+               (startDate < interval.start && endDate > interval.end); // Event spans across the month
+      } catch (e) {
+        // console.error("Error parsing event date for filtering:", event, e);
+        return false;
+      }
+    }).sort((a, b) => parseISO(a.startDate).getTime() - parseISO(b.startDate).getTime());
+  }, [calendarDate, bookingEvents]);
+
+  const handleEventRowClick = (event: IcalEvent) => {
+    setSelectedEvent(event);
+    setIsEventDetailDialogOpen(true);
+  };
 
   if (property === undefined) {
     return (
@@ -189,6 +247,8 @@ export default function PropertyDetailPage() {
                     selected={calendarDate}
                     onSelect={setCalendarDate}
                     className="rounded-md"
+                    month={calendarDate} // Control the displayed month
+                    onMonthChange={setCalendarDate} // Allow month navigation to update calendarDate
                     // TODO: Future enhancement - highlight bookingEvents on this calendar
                   />
                 </CardContent>
@@ -204,71 +264,83 @@ export default function PropertyDetailPage() {
               <Card className="shadow-xl rounded-xl">
                 <CardHeader>
                   <CardTitle>iCal Feed Sync</CardTitle>
-                  <CardDescription>Sync with your booking calendar (e.g., Airbnb, VRBO, OwnerRez) to automate thermostat settings.</CardDescription>
+                  <CardDescription>Sync with your booking calendar to automate thermostat settings.
+                    {icalUrl.startsWith("https://app.ownerrez.com") && 
+                      <span className="text-xs block mt-1">
+                        (Using OwnerRez sample feed. <a href={icalUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">View Raw Feed <ExternalLink className="inline h-3 w-3"/></a>)
+                      </span>
+                    }
+                  </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleLoadIcal}>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="icalUrl">iCalendar Feed URL</Label>
-                      <div className="flex space-x-2 mt-1">
-                        <Input
-                          id="icalUrl"
-                          type="url"
-                          placeholder="https://your-ical-provider.com/feed.ics"
-                          value={icalUrl}
-                          onChange={(e) => setIcalUrl(e.target.value)}
-                          className="flex-grow"
-                        />
-                        <Button type="submit" disabled={isLoadingIcal}>
-                          {isLoadingIcal ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync"}
-                        </Button>
+                
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="icalUrl">iCalendar Feed URL</Label>
+                    <div className="flex space-x-2 mt-1">
+                      <Input
+                        id="icalUrl"
+                        type="url"
+                        placeholder="https://your-ical-provider.com/feed.ics"
+                        value={icalUrl}
+                        onChange={(e) => setIcalUrl(e.target.value)}
+                        className="flex-grow"
+                      />
+                      <Button onClick={handleManualSync} disabled={isLoadingIcal}>
+                        {isLoadingIcal ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync"}
+                      </Button>
+                    </div>
+                  </div>
+                  {icalError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Sync Error</AlertTitle>
+                      <AlertDescription>{icalError}</AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {isLoadingIcal && eventsForSelectedMonth.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Loading bookings...</p>}
+                  
+                  {!isLoadingIcal && eventsForSelectedMonth.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-medium mb-2">Bookings for {format(calendarDate || new Date(), "MMMM yyyy")}:</h4>
+                      <div className="max-h-60 overflow-y-auto border rounded-md">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Summary</TableHead>
+                              <TableHead>Check-in</TableHead>
+                              <TableHead>Check-out</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {eventsForSelectedMonth.map(event => (
+                              <TableRow key={event.uid} onClick={() => handleEventRowClick(event)} className="cursor-pointer hover:bg-muted/50">
+                                <TableCell className="font-medium truncate max-w-xs" title={event.summary}>{event.summary || "N/A"}</TableCell>
+                                <TableCell>{format(parseISO(event.startDate), "MMM d, h:mm a")}</TableCell>
+                                <TableCell>{format(parseISO(event.endDate), "MMM d, h:mm a")}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
                     </div>
-                    {icalError && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Sync Error</AlertTitle>
-                        <AlertDescription>{icalError}</AlertDescription>
-                      </Alert>
-                    )}
-                    {bookingEvents.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="font-medium mb-2">Upcoming Bookings:</h4>
-                        <div className="max-h-60 overflow-y-auto border rounded-md">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Summary</TableHead>
-                                <TableHead>Check-in</TableHead>
-                                <TableHead>Check-out</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {bookingEvents.map(event => (
-                                <TableRow key={event.uid}>
-                                  <TableCell className="font-medium truncate max-w-xs" title={event.summary}>{event.summary}</TableCell>
-                                  <TableCell>{format(new Date(event.startDate), "MMM d, yyyy h:mm a")}</TableCell>
-                                  <TableCell>{format(new Date(event.endDate), "MMM d, yyyy h:mm a")}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    )}
-                    {bookingEvents.length === 0 && !isLoadingIcal && icalUrl && !icalError && (
-                         <p className="text-sm text-muted-foreground text-center py-4">No bookings found in the provided iCal feed, or the feed is empty.</p>
-                    )}
-                  </CardContent>
-                </form>
-                <CardHeader className="pt-4">
+                  )}
+                  {!isLoadingIcal && !icalError && eventsForSelectedMonth.length === 0 && bookingEvents.length > 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No bookings found for {format(calendarDate || new Date(), "MMMM yyyy")}. Select another month.</p>
+                  )}
+                  {!isLoadingIcal && !icalError && bookingEvents.length === 0 && (
+                       <p className="text-sm text-muted-foreground text-center py-4">No bookings found in the provided iCal feed, or the feed is empty.</p>
+                  )}
+                </CardContent>
+                
+                <CardHeader className="pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <div className='flex items-center'>
                      <Settings2 className="mr-2 h-5 w-5 text-primary" />
                      <CardTitle className="text-lg">Automation Rules</CardTitle>
                     </div>
                   </div>
-                  <CardDescription>Define how thermostats behave around check-in/out times.</CardDescription>
+                  <CardDescription>Define how thermostats behave around check-in/out times. These settings are saved locally in your browser for this property.</CardDescription>
                 </CardHeader>
                 <form onSubmit={handleSaveAutomationSettings}>
                     <CardContent className="space-y-4">
@@ -325,9 +397,44 @@ export default function PropertyDetailPage() {
           </div>
         </div>
       </main>
+
+      {selectedEvent && (
+        <Dialog open={isEventDetailDialogOpen} onOpenChange={setIsEventDetailDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-headline">{selectedEvent.summary || "Booking Details"}</DialogTitle>
+              <DialogDescription>
+                Details for the selected booking and associated automation rules.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2 text-sm">
+              <div>
+                <h4 className="font-semibold mb-1">Booking Information:</h4>
+                <p><strong>Check-in:</strong> {format(parseISO(selectedEvent.startDate), "MMM d, yyyy 'at' h:mm a")}</p>
+                <p><strong>Check-out:</strong> {format(parseISO(selectedEvent.endDate), "MMM d, yyyy 'at' h:mm a")}</p>
+                {selectedEvent.description && <p><strong>Description:</strong> {selectedEvent.description}</p>}
+                {selectedEvent.location && <p><strong>Location:</strong> {selectedEvent.location}</p>}
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Configured Automation Rules:</h4>
+                <p>Turn on thermostats: <strong>{hoursBeforeCheckIn} hours</strong> before check-in.</p>
+                <p>Adjust thermostats: <strong>{hoursAfterCheckOut} hours</strong> after check-out.</p>
+                <p>Checkout Preset Temperature: <strong>{checkoutPresetTemp || "Not set"}</strong>.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <footer className="text-center p-4 text-sm text-muted-foreground border-t mt-auto">
         © {new Date().getFullYear()} ThermoAI. All rights reserved.
       </footer>
     </div>
   );
 }
+
