@@ -54,7 +54,9 @@ For each VEVENT, provide:
 Return only events that have a DTSTART.
 Ensure all dates are in strict ISO 8601 UTC format (ending with 'Z').
 
-If there are parsing errors, the iCalendar data is invalid, or no valid events are found, set the 'error' field in the output with a descriptive message and return an empty events list. Otherwise, return the list of events and omit the 'error' field.
+If there are parsing errors or the iCalendar data is structurally invalid (e.g., malformed VCALENDAR structure), set the 'error' field in the output with a descriptive message and return an empty events list.
+If the iCalendar data is valid but simply contains no VEVENT components (or no VEVENTs with a DTSTART property), then return an empty 'events' list and do not set the 'error' field.
+Otherwise, return the list of events and omit the 'error' field.
 
 iCalendar Data:
 \`\`\`
@@ -93,8 +95,6 @@ const parseIcalFlow = ai.defineFlow(
            error: `Invalid iCal feed: Does not start with BEGIN:VCALENDAR. Content preview (first 200 chars): '${icalContent.substring(0,200).replace(/\n/g, "\\n")}'` 
          };
       }
-      // Removed the explicit check for VEVENT here. Let the AI try to parse it.
-      // If the AI returns no events and no error, it implies an empty but valid calendar.
 
       const {output} = await prompt({ icalContent });
       if (!output) {
