@@ -1,1 +1,19 @@
-{}
+{
+  "__forceSync__": "2024-08-18T04:00:00.000Z",
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20",
+    "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+  },
+  "hosting": {
+    "public": "out",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "frameworksBackend": {
+      "region": "us-central1"
+    }
+  }
+}
