@@ -1,3 +1,4 @@
+
 {
   "name": "functions",
   "description": "Cloud Functions for Firebase",
@@ -11,7 +12,7 @@
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "main": "lib/index.js",
   "dependencies": {
