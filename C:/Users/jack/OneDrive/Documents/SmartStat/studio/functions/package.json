@@ -1,5 +1,5 @@
-
 {
+  "__forceSync__": "2024-08-18T02:25:12.345Z",
   "name": "functions",
   "description": "Cloud Functions for Firebase",
   "scripts": {
@@ -16,9 +16,9 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@google/generative-ai": "^0.12.0",
     "firebase-admin": "^12.1.1",
-    "firebase-functions": "^5.0.1"
+    "firebase-functions": "^5.0.1",
+    "@google/generative-ai": "^0.12.0"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

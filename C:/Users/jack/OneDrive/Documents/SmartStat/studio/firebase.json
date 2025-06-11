@@ -1,11 +1,10 @@
-
 {
+  "__forceSync__": "2024-08-18T02:25:12.345Z",
   "functions": {
     "source": "functions",
     "runtime": "nodejs20",
     "predeploy": [
-      "npm --prefix \"%RESOURCE_DIR%\" run lint",
-      "npm --prefix \"%RESOURCE_DIR%\" run build"
+      "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
   },
   "hosting": {
